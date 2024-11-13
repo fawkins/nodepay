@@ -4,7 +4,9 @@ import uuid
 import aiohttp
 from aiohttp import web, ClientSession, ClientTimeout
 from loguru import logger
+from itertools import cycle
 
+# ASCII art
 ascii_art = """
 .·:'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''':·.
 : :  __  __                                                                : :
@@ -12,10 +14,6 @@ ascii_art = """
 : : $$ |$$ |                                                               : :
 : : $$ |$$ |                                                               : :
 : : $$/ $$/                                                                : :
-: :                                                                        : :
-: :                                                                        : :
-: :                                                                        : :
-: :                                                                        : :
 : :                                                                        : :
 : :  ________  ______   __       __  __    __  ______  __    __   ______   : :
 : : /        |/      \ /  |  _  /  |/  |  /  |/      |/  \  /  | /      \  : :
@@ -27,23 +25,18 @@ ascii_art = """
 : : $$ |     $$ |  $$ |$$$/    $$$ |$$ | $$  |/ $$   |$$ | $$$ |$$    $$/  : :
 : : $$/      $$/   $$/ $$/      $$/ $$/   $$/ $$$$$$/ $$/   $$/  $$$$$$/   : :
 : :                                                                        : :
-: :                                                                        : :
-: :                                                                        : :
 : :                                                              __  __    : :
 : :                                                             /  |/  |   : :
 : :                                                             $$ |$$ |   : :
 : :                                                             $$ |$$ |   : :
 : :                                                             $$/ $$/    : :
 : :                                                                        : :
-: :                                                                        : :
-: :                                                                        : :
-: :                                                                        : :
 '·:........................................................................:·'
 """
 
 print(ascii_art)
 
-# Konstanta
+# Constants
 PING_INTERVAL = 60
 RETRIES = 3
 token_np = 'token.txt'
@@ -65,8 +58,8 @@ browser_id = None
 account_info = {}
 last_ping_time = {}
 
-async def panggil_api(session, url, data, token):
-    """Melakukan permintaan API menggunakan data dan proxy yang diberikan."""
+async def panggil_api(session, url, data, token, proxy):
+    """Make an API request using the provided data and proxy."""
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -74,19 +67,19 @@ async def panggil_api(session, url, data, token):
     }
     for attempt in range(RETRIES):
         try:
-            async with session.post(url, json=data, headers=headers, timeout=ClientTimeout(total=10)) as response:
+            async with session.post(url, json=data, headers=headers, proxy=proxy, timeout=ClientTimeout(total=10)) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientResponseError as e:
-            logger.error(f"Gagal memanggil API dengan status {e.status}: {e}")
+            logger.error(f"API call failed with status {e.status}: {e}")
         except asyncio.TimeoutError:
-            logger.error("Waktu habis saat memanggil API")
+            logger.error("API call timed out")
         except Exception as e:
-            logger.error(f"Error tak terduga saat memanggil API: {e}")
+            logger.error(f"Unexpected error during API call: {e}")
     return None
 
-async def ping(session, token):
-    """Ping server untuk mengecek sesi."""
+async def ping(session, token, proxy):
+    """Ping server to check the session."""
     global last_ping_time, status_connect
 
     current_time = time.time()
@@ -100,70 +93,70 @@ async def ping(session, token):
         "timestamp": int(current_time)
     }
 
-    response = await panggil_api(session, DOMAIN_API["PING"], data, token)
+    response = await panggil_api(session, DOMAIN_API["PING"], data, token, proxy)
 
     if response and response.get("code") == 0:
-        logger.info("Ping berhasil")
+        logger.info("Ping successful")
         status_connect = CONNECTION_STATES["CONNECTED"]
     else:
-        logger.error("Ping gagal")
+        logger.error("Ping failed")
         status_connect = CONNECTION_STATES["DISCONNECTED"]
 
-async def tampilkan_info_profil(session, token, semaphore):
-    """Cek info sesi atau buat sesi baru jika diperlukan."""
+async def tampilkan_info_profil(session, token, proxy, semaphore):
+    """Check session info or create a new session if needed."""
     async with semaphore:
         global browser_id, account_info
 
         sesi_info = muat_info_sesi()
         if sesi_info:
             account_info = sesi_info
-            logger.info("Info sesi dimuat")
+            logger.info("Session info loaded")
         else:
             browser_id = str(uuid.uuid4())
-            logger.info(f"Membuat browser_id baru: {browser_id}")
-            response = await panggil_api(session, DOMAIN_API["SESSION"], {}, token)
+            logger.info(f"Creating new browser_id: {browser_id}")
+            response = await panggil_api(session, DOMAIN_API["SESSION"], {}, token, proxy)
             if response and response.get("code") == 0:
                 account_info = response["data"]
                 simpan_info_sesi(account_info)
-                logger.info("Sesi dibuat dan disimpan")
+                logger.info("Session created and saved")
             else:
-                logger.error("Gagal membuat sesi")
+                logger.error("Failed to create session")
 
         if account_info:
-            await ping(session, token)
+            await ping(session, token, proxy)
 
 def muat_proxies(filename):
-    """Muat daftar proxy dari file."""
+    """Load the proxy list from a file."""
     try:
         with open(filename, 'r') as file:
             proxies = file.read().splitlines()
-            logger.info(f"{len(proxies)} proxy berhasil dimuat.")
+            logger.info(f"{len(proxies)} proxies loaded successfully.")
             return proxies
     except Exception as e:
-        logger.error(f"Gagal memuat proxy: {e}")
+        logger.error(f"Failed to load proxies: {e}")
         return []
 
 def muat_token(filename):
-    """Muat daftar token dari file."""
+    """Load the token list from a file."""
     try:
         with open(filename, 'r') as file:
             tokens = file.read().splitlines()
-            logger.info(f"{len(tokens)} token berhasil dimuat.")
+            logger.info(f"{len(tokens)} tokens loaded successfully.")
             return tokens
     except Exception as e:
-        logger.error(f"Gagal memuat token: {e}")
+        logger.error(f"Failed to load tokens: {e}")
         return []
 
 def muat_info_sesi():
-    """Mengambil informasi sesi dari penyimpanan."""
+    """Retrieve session information from storage."""
     return None
 
 def simpan_info_sesi(data):
-    """Menyimpan informasi sesi ke penyimpanan."""
-    logger.info("Informasi sesi disimpan")
+    """Save session information to storage."""
+    logger.info("Session information saved")
 
 async def status(request):
-    """Endpoint untuk cek status koneksi."""
+    """Endpoint to check connection status."""
     status_msg = {
         "status": status_connect,
         "account_info": account_info
@@ -171,18 +164,19 @@ async def status(request):
     return web.json_response(status_msg)
 
 async def mulai_server_http():
-    """Mulai server HTTP."""
+    """Start HTTP server."""
     app = web.Application()
     app.add_routes([web.get('/status', status)])
     return app
 
 async def main():
     tokens = muat_token(token_np)
-
-    if not tokens:
-        logger.error("Tidak ada token yang tersedia.")
+    proxies = muat_proxies(proxy_np)
+    if not tokens or not proxies:
+        logger.error("No tokens or proxies available.")
         return
 
+    proxy_cycle = cycle(proxies)  
     semaphore = asyncio.Semaphore(10)
     app = await mulai_server_http()
     runner = web.AppRunner(app)
@@ -192,7 +186,11 @@ async def main():
 
     async with aiohttp.ClientSession() as session:
         while True:
-            tasks = [asyncio.create_task(tampilkan_info_profil(session, token, semaphore)) for token in tokens]
+            tasks = [
+                asyncio.create_task(
+                    tampilkan_info_profil(session, token, next(proxy_cycle), semaphore)
+                ) for token in tokens
+            ]
             await asyncio.gather(*tasks)
             await asyncio.sleep(10)
 
@@ -200,4 +198,4 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Program dihentikan oleh pengguna.")
+        logger.info("Program stopped by user.")
