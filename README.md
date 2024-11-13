@@ -44,7 +44,7 @@ go to the console, then type ```` localStorage.getItem('np_token'); ````
 ![Token](https://github.com/user-attachments/assets/d6e38b07-1d25-48e3-b377-0f2e4619605d)
 
 
-# ▶️ Start
+# ☕ Start
 
 ````
 python start.py
