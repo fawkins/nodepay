@@ -1,6 +1,6 @@
 # ⚙️ Nodepay mining 
 
-* INSTAL
+* ```` INSTAL ````
 ````  
 pkg ugrade && update 
 ````
@@ -22,12 +22,12 @@ pkg install loguru
 
 # ⏭️ Next-step
 
-* CLONE
+* ```` CLONE ````
 ````
 git clone https://github.com/fawkins/nodepay.git
 ````
 
-* Fill in your proxy ( Http )
+* Fill in your proxy ```` ( Http ) ````
 ````
 nano proxy.txt
 ````
@@ -45,6 +45,9 @@ go to the console, then type ```` localStorage.getItem('np_token'); ````
 
 
 # ☕ Start
+
+If you have completed all the steps,
+you can run the command below
 
 ````
 python start.py
