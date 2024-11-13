@@ -2,9 +2,8 @@ import asyncio
 import time
 import uuid
 import aiohttp
-from aiohttp import web
+from aiohttp import web, ClientSession, ClientTimeout
 from loguru import logger
-
 
 ascii_art = """
 .·:'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''':·.
@@ -42,15 +41,13 @@ ascii_art = """
 '·:........................................................................:·'
 """
 
-
 print(ascii_art)
 
-# Constants
+# Konstanta
 PING_INTERVAL = 60
 RETRIES = 3
 token_np = 'token.txt'
 proxy_np = 'proxy.txt'
-
 
 DOMAIN_API = {
     "SESSION": "https://api.nodepay.org/api/auth/session",
@@ -63,39 +60,36 @@ CONNECTION_STATES = {
     "NONE_CONNECTION": 3
 }
 
-
 status_connect = CONNECTION_STATES["NONE_CONNECTION"]
 browser_id = None
 account_info = {}
 last_ping_time = {}
 
-async def call_api(session, url, data, proxy, token):
-    """Perform API request using the given data and proxy."""
+async def panggil_api(session, url, data, proxy, token):
+    """Melakukan permintaan API menggunakan data dan proxy yang diberikan."""
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, seperti Gecko) Chrome/90.0.4430.212 Safari/537.36",
     }
-
-    try:
-        async with session.post(url, json=data, headers=headers, proxy=f"http://{proxy}", timeout=10) as response:
-            response.raise_for_status()  
-            return await response.json()
-    except aiohttp.ClientResponseError as e:
-        logger.error(f"API call failed with status {e.status} for proxy {proxy}: {e.message}")
-    except asyncio.TimeoutError:
-        logger.error(f"Timeout error when calling API with proxy {proxy}")
-    except Exception as e:
-        logger.error(f"Unexpected error during API call with proxy {proxy}: {e}")
+    for attempt in range(RETRIES):
+        try:
+            async with session.post(url, json=data, headers=headers, proxy=proxy, timeout=ClientTimeout(total=10)) as response:
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientResponseError as e:
+            logger.error(f"Gagal memanggil API dengan status {e.status} untuk proxy {proxy}: {e}")
+        except asyncio.TimeoutError:
+            logger.error(f"Waktu habis saat memanggil API dengan proxy {proxy}")
+        except Exception as e:
+            logger.error(f"Error tak terduga saat memanggil API dengan proxy {proxy}: {e}")
     return None
 
 async def ping(session, proxy, token):
-    """Ping the server to check the session."""
+    """Ping server untuk mengecek sesi."""
     global last_ping_time, status_connect
 
     current_time = time.time()
-
-    
     if proxy in last_ping_time and (current_time - last_ping_time[proxy]) < PING_INTERVAL:
         return
 
@@ -106,96 +100,84 @@ async def ping(session, proxy, token):
         "timestamp": int(current_time)
     }
 
-    response = await call_api(session, DOMAIN_API["PING"], data, proxy, token)
+    response = await panggil_api(session, DOMAIN_API["PING"], data, proxy, token)
 
     if response and response.get("code") == 0:
-        logger.info(f"Ping successful via proxy {proxy}")
+        logger.info(f"Ping berhasil melalui proxy {proxy}")
         status_connect = CONNECTION_STATES["CONNECTED"]
     else:
-        logger.error(f"Ping failed via proxy {proxy}")
+        logger.error(f"Ping gagal melalui proxy {proxy}")
         status_connect = CONNECTION_STATES["DISCONNECTED"]
 
-async def render_profile_info(session, proxy, token, semaphore):
-    """Check session info, or create a new session if needed."""
-    async with semaphore:  
+async def tampilkan_info_profil(session, proxy, token, semaphore):
+    """Cek info sesi atau buat sesi baru jika diperlukan."""
+    async with semaphore:
         global browser_id, account_info
 
-        session_info = load_session_info(proxy)
-
-        if session_info:
-            account_info = session_info
-            logger.info(f"Loaded session info for proxy {proxy}")
+        sesi_info = muat_info_sesi(proxy)
+        if sesi_info:
+            account_info = sesi_info
+            logger.info(f"Info sesi dimuat untuk proxy {proxy}")
         else:
-            browser_id = str(uuid.uuid4())  
-            logger.info(f"Generated new browser_id for proxy {proxy}: {browser_id}")
-            response = await call_api(session, DOMAIN_API["SESSION"], {}, proxy, token)
+            browser_id = str(uuid.uuid4())
+            logger.info(f"Membuat browser_id baru untuk proxy {proxy}: {browser_id}")
+            response = await panggil_api(session, DOMAIN_API["SESSION"], {}, proxy, token)
             if response and response.get("code") == 0:
                 account_info = response["data"]
-                save_session_info(proxy, account_info)
-                logger.info(f"Session created and saved for proxy {proxy}")
+                simpan_info_sesi(proxy, account_info)
+                logger.info(f"Sesi dibuat dan disimpan untuk proxy {proxy}")
             else:
-                logger.error(f"Failed to create session for proxy {proxy}")
+                logger.error(f"Gagal membuat sesi untuk proxy {proxy}")
 
         if account_info:
             await ping(session, proxy, token)
 
-def load_proxies(filename):
-    """Load proxy list from file."""
+def muat_proxies(filename):
+    """Muat daftar proxy dari file."""
     try:
         with open(filename, 'r') as file:
             proxies = file.read().splitlines()
-            logger.info(f"Loaded {len(proxies)} proxies.")
+            logger.info(f"{len(proxies)} proxy berhasil dimuat.")
             return proxies
     except Exception as e:
-        logger.error(f"Failed to load proxies: {e}")
+        logger.error(f"Gagal memuat proxy: {e}")
         return []
 
-def load_tokens(filename):
-    """Load tokens from file."""
+def muat_token(filename):
+    """Muat daftar token dari file."""
     try:
         with open(filename, 'r') as file:
             tokens = file.read().splitlines()
-            logger.info(f"Loaded {len(tokens)} tokens.")
+            logger.info(f"{len(tokens)} token berhasil dimuat.")
             return tokens
     except Exception as e:
-        logger.error(f"Failed to load tokens: {e}")
+        logger.error(f"Gagal memuat token: {e}")
         return []
 
-def save_session_info(proxy, data):
-    """Placeholder to save session info."""
-    logger.info(f"Saving session info for proxy {proxy}")
-
-def load_session_info(proxy):
-    """Placeholder to load session info from storage."""
-    return None
-
-
 async def status(request):
-    """Endpoint to check the status of the connection."""
+    """Endpoint untuk cek status koneksi."""
     status_msg = {
         "status": status_connect,
         "account_info": account_info
     }
     return web.json_response(status_msg)
 
-async def start_http_server():
-    """Start the HTTP server."""
+async def mulai_server_http():
+    """Mulai server HTTP."""
     app = web.Application()
     app.add_routes([web.get('/status', status)])
     return app
 
 async def main():
-    proxies = load_proxies(proxy_np)
-    tokens = load_tokens(token_np)
+    proxies = muat_proxies(proxy_np)
+    tokens = muat_token(token_np)
 
     if not proxies or not tokens:
-        logger.error("No proxies or tokens available.")
+        logger.error("Tidak ada proxy atau token yang tersedia.")
         return
 
-    semaphore = asyncio.Semaphore(10)  
-
-    
-    app = await start_http_server()
+    semaphore = asyncio.Semaphore(10)
+    app = await mulai_server_http()
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', 8080)
@@ -205,14 +187,15 @@ async def main():
         while True:
             tasks = []
             for token in tokens:
-                
-                tasks.extend([asyncio.create_task(render_profile_info(session, proxy, token, semaphore)) for proxy in proxies[:100]])
+                tasks.extend([
+                    asyncio.create_task(tampilkan_info_profil(session, proxy, token, semaphore)) for proxy in proxies[:100]
+                ])
                 await asyncio.gather(*tasks)
-                tasks.clear() 
-                await asyncio.sleep(10)  
+                tasks.clear()
+                await asyncio.sleep(10)
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Program terminated by user.")
+        logger.info("Program dihentikan oleh pengguna.")
