@@ -1,4 +1,4 @@
-# Nodepay mining 
+# ⚙️ Nodepay mining 
 
 * INSTAL
 ````  
@@ -20,25 +20,31 @@ pip install aiohttp
 pkg install loguru
 ````
 
-# Next-step
+# ⏭️ Next-step
 
-* Clone 
+* CLONE
 ````
 git clone https://github.com/fawkins/nodepay.git
 ````
 
-* Isikan dengan proxy yang kalian punya menggunakan ( Http )
+* Fill in your proxy ( Http )
 ````
 nano proxy.txt
 ````
 
 
-* Isikan dengan token kalian
+* Fill in your Token
 ````
 nano token.txt
 ````
 
-# jalankan
+```` How to get tokens ```` Use Inspect Element in your browser ```` F12 ```` 
+go to the console, then type ```` localStorage.getItem('np_token'); ````
+
+![Token](https://github.com/user-attachments/assets/d6e38b07-1d25-48e3-b377-0f2e4619605d)
+
+
+# ▶️ Start
 
 ````
 python start.py
