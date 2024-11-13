@@ -27,12 +27,15 @@ pkg install loguru
 git clone https://github.com/fawkins/nodepay.git
 ````
 
-* Isikan dengan proxy yang kalian punya menggunakan Https
+* Isikan dengan proxy yang kalian punya menggunakan ( Http )
 ````
-nano proxy_np.txt
+nano proxy.txt
 ````
+
+
+* Isikan dengan token kalian
 ````
-* Isikan dengan token yang kalian dapat
+nano token.txt
 ````
 
 # jalankan
