@@ -1,7 +1,8 @@
 # ⚙️ Nodepay mining 
 
 * ```` INSTAL ````
-````  
+* You can run it anywhere, but I use Termux
+````
 pkg ugrade && update 
 ````
 ````
